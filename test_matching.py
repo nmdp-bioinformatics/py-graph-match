@@ -6,7 +6,7 @@ def main():
     PATH_CONFIG_FILE = "conf/minimal-configuration.json"
 
     # The donors' graph we built earlier
-    donors_graph = Graph.from_pickle(PATH_TO_DONORS_GRAPH)
+    donors_graph, allele_idx_bidict = Graph.from_pickle(PATH_TO_DONORS_GRAPH)
 
     # matching_results is a dict - {patient_id: the patient's result dataframe}
     matching_results = matching(
@@ -19,6 +19,7 @@ def main():
         save_to_csv=True,
         verbose=True,
         output_dir="results",
+        bdict=allele_idx_bidict,
     )
 
 

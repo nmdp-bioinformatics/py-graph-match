@@ -92,10 +92,8 @@ install: clean ## install the package to the active Python's site-packages
 	pip install -r requirements.txt
 	pip install -r requirements-tests.txt
 	pip install -r requirements-dev.txt
-	pip install -r requirements-deploy.txt
 	pre-commit install
 	python setup.py build_ext --inplace
-	python setup.py install
 
 venv: ## creates a Python3 virtualenv environment in venv
 	python3 -m venv venv --prompt $(PROJECT_NAME)-venv

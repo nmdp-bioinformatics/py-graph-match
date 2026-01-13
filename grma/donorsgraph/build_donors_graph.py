@@ -10,7 +10,8 @@ from grma.donorsgraph import Edge
 from grma.donorsgraph.create_lol import LolBuilder
 from grma.match.graph_wrapper import Graph
 from grma.utilities.geno_representation import HashableArray
-from grma.utilities.utils import gl_string_to_integers, tuple_geno_to_int, print_time
+from grma.utilities.utils import print_time, geno_to_int, gl_string_to_hash
+from bidict import bidict
 
 
 class BuildMatchingGraph:
@@ -19,7 +20,7 @@ class BuildMatchingGraph:
     It gets a path to directory with the donors' file, builds the graph and saved it as LOL graph using Cython.
     """
 
-    __slots__ = "_verbose", "_graph", "_edges"
+    __slots__ = "_verbose", "_graph", "_edges", "bidirectional_dict"
 
     def __init__(self, path_to_donors_directory: str, verbose: bool = False):
         """
@@ -31,19 +32,20 @@ class BuildMatchingGraph:
         self._verbose = verbose
         self._graph = None  # LOL dict-representation
         self._edges: List[Edge] = []  # edge-list
+        self.bidirectional_dict = bidict()
         self._save_graph_as_edges(path_to_donors_directory)
 
     def _create_classes_edges(self, geno, class_, layers):
-        int_class = tuple_geno_to_int(class_)
+        hash_class = gl_string_to_hash(str(class_)) % 1000000000 + 1000000000
 
-        self._edges.append(Edge(int_class, geno, 0))
+        self._edges.append(Edge(hash_class, geno, 0))
 
         # check if the class node was created
-        if int_class not in layers["CLASS"]:
-            layers["CLASS"].add(int_class)
-            self._create_subclass_edges(class_, int_class, layers)
+        if hash_class not in layers["CLASS"]:
+            layers["CLASS"].add(hash_class)
+            self._create_subclass_edges(class_, hash_class, layers)
 
-    def _create_subclass_edges(self, class_, int_class, layers):
+    def _create_subclass_edges(self, class_, hash_class, layers):
         """
         subclasses edges are created by dropping an allele from a class.
         each allele we drop, will be replaced with zero,
@@ -56,19 +58,18 @@ class BuildMatchingGraph:
         # set the missing allele to always be the second allele in the locus
         for i in range(num_of_alleles):
             if i % 2 == 0:
-                subclass_alleles.add(
-                    tuple_geno_to_int(tuple(class_[0:i] + (0,) + class_[i + 1 :]))
-                )
+                subclass = tuple(class_[0:i] + (0,) + class_[i + 1 :])
             else:
-                subclass_alleles.add(
-                    tuple_geno_to_int(
-                        tuple(class_[0 : i - 1] + (0, class_[i - 1]) + class_[i + 1 :])
-                    )
+                subclass = tuple(
+                    class_[0 : i - 1] + (0, class_[i - 1]) + class_[i + 1 :]
                 )
+
+            hash_subclass = gl_string_to_hash(str(subclass)) % 1000000000 + 2000000000
+            subclass_alleles.add(hash_subclass)
 
         # add subclass->class edges
         for sub in subclass_alleles:
-            self._edges.append(Edge(sub, int_class, 0))
+            self._edges.append(Edge(sub, hash_class, 0))
             if sub not in layers["SUBCLASS"]:
                 layers["SUBCLASS"].add(sub)
 
@@ -101,16 +102,27 @@ class BuildMatchingGraph:
                 ):
                     # retrieve all line's parameters
                     donor_id, geno, probability, index = line.strip().split(",")
-                    donor_id = int(donor_id)
+                    donor_id = -1 * int(donor_id)
                     index = int(index)
                     probability = float(probability)
 
                     # convert geno to list of integers
-                    geno = gl_string_to_integers(geno)
-
-                    # sort alleles for each HLA-X
-                    for x in range(0, len(geno), 2):
-                        geno[x : x + 2] = sorted(geno[x : x + 2])
+                    alleles = [
+                        allele
+                        for locus in geno.split("^")
+                        for allele in locus.split("+")
+                    ]
+                    geno = []
+                    for allele in alleles:
+                        if "N" in allele:
+                            geno.append(0)
+                        elif allele in self.bidirectional_dict:
+                            geno.append(self.bidirectional_dict[allele])
+                        else:
+                            self.bidirectional_dict[allele] = (
+                                len(self.bidirectional_dict) + 3
+                            )
+                            geno.append(self.bidirectional_dict[allele])
                     geno = HashableArray(geno)
 
                     # handle new donor appearance in file
@@ -135,7 +147,7 @@ class BuildMatchingGraph:
                     # continue creation of classes and subclasses
                     if geno not in layers["GENOTYPE"]:
                         layers["GENOTYPE"].add(geno)
-                        CLASS_I_END = -2 * int(-len(geno)/4 - 0.5)
+                        CLASS_I_END = -2 * int(-len(geno) / 4 - 0.5)
                         geno_class1 = tuple(geno[:CLASS_I_END])
                         geno_class2 = tuple(geno[CLASS_I_END:])
                         self._create_classes_edges(geno, geno_class1, layers)
@@ -150,6 +162,8 @@ class BuildMatchingGraph:
 
         # add the last donor to edgelist
         for HLA, probability in probability_dict.items():
+            if last_id == 0:
+                print("last_id = 0")
             self._edges.append(Edge(HLA, last_id, probability / total_probability))
             self._edges.append(Edge(last_id, HLA, probability / total_probability))
 
@@ -176,4 +190,5 @@ class BuildMatchingGraph:
 
         :param path: A path to save the pickled object
         """
-        pickle.dump(self._graph, open(path, "wb"))
+        graph_bdict = [self._graph, self.bidirectional_dict]
+        pickle.dump(graph_bdict, open(path, "wb"))

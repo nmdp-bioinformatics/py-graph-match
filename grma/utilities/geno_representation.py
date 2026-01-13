@@ -27,7 +27,7 @@ class HashableArray:
 
     def __init__(self, arr):
         self.it = None
-        self.arr = np.array(arr, dtype=np.uint16)
+        self.arr = np.array(arr, dtype=np.uint32)
 
     def __hash__(self):
         return chash(self.arr)

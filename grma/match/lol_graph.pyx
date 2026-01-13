@@ -15,8 +15,8 @@ cdef class LolGraph:
         UINT[:] _index_list
         UINT[:] _neighbors_list
         FLOAT[:] _weights_list
-        UINT[:] _map_number_to_num_node
-        UINT16[:, :] _map_number_to_arr_node
+        INT[:] _map_number_to_num_node
+        UINT[:, :] _map_number_to_arr_node  # Changed from UINT16[:, :]
         UINT _arrays_start
         bint directed
         bint weighted
@@ -24,8 +24,8 @@ cdef class LolGraph:
     def __init__(self, UINT[:] index_list,
                  UINT[:] neighbors_list,
                  FLOAT[:] weights_list,
-                 UINT[:] map_number_to_num_node,
-                 UINT16[:, :] map_number_to_arr_node,
+                 INT[:] map_number_to_num_node,
+                 UINT[:, :] map_number_to_arr_node,  # Changed from UINT16[:, :]
                  UINT arrays_start,
                  bint directed, bint weighted):
         self._index_list = index_list
@@ -49,12 +49,12 @@ cdef class LolGraph:
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    cpdef UINT16[:] arr_node_value_from_id(self, UINT node_id):
+    cpdef UINT[:] arr_node_value_from_id(self, UINT node_id):  # Changed from UINT16[:]
         return self._map_number_to_arr_node[node_id - self._arrays_start]
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    cpdef UINT num_node_value_from_id(self, UINT node_id):
+    cpdef INT num_node_value_from_id(self, UINT node_id):
         return self._map_number_to_num_node[node_id]
 
     @cython.boundscheck(False)
@@ -108,7 +108,6 @@ cdef class LolGraph:
             return self._weights_list[idx + node2_index]
         return -1
 
-    # get neighbors of specific node n
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cpdef tuple neighbors_weighted(self, UINT node):
@@ -152,8 +151,8 @@ cdef class LolGraph:
         """return the second degree neighbors of a node - neighbors of neighbors."""
         cdef UINT idx, idx_end, i, j, pointer, neighbor_1st, idx_1st_neigh, idx_end_1st_neigh, neighbor_id
         cdef np.ndarray[UINT, ndim=1] neighbors_list_id, neighbors_id
-        cdef UINT16[:] arr
-        cdef np.ndarray[UINT16, ndim=2] neighbors_value
+        cdef UINT[:] arr  # Changed from UINT16[:]
+        cdef np.ndarray[UINT, ndim=2] neighbors_value  # Changed from UINT16
         cdef UINT num_of_neighbors_2nd
         cdef UINT loci_len
 
@@ -178,7 +177,7 @@ cdef class LolGraph:
                 pointer += 1
 
         loci_len = <UINT> self._map_number_to_arr_node.shape[1]
-        neighbors_value = np.zeros((num_of_neighbors_2nd, loci_len), dtype=np.uint16)
+        neighbors_value = np.zeros((num_of_neighbors_2nd, loci_len), dtype=np.uint32)  # Changed from uint16
         for i in range(len(neighbors_id)):
             neighbor_id = neighbors_id[i]
             arr = self.arr_node_value_from_id(neighbor_id)

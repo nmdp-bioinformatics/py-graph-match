@@ -7,6 +7,7 @@ from typing import Union
 import numpy as np
 from grma.utilities.geno_representation import HashableArray
 from grma.match.lol_graph import LolGraph
+from bidict import bidict
 
 NODES_TYPES = Union[int, HashableArray]
 
@@ -57,10 +58,12 @@ class Graph(object):
         ret = self._graph.get_edge_data(node1_num, node2_num)
         return default if ret == exception_val else ret
 
-    def class_neighbors(self, node: NODES_TYPES | int, search_lol_id: bool = False, Len: int = 10):
+    def class_neighbors(
+        self, node: NODES_TYPES | int, search_lol_id: bool = False, Len: int = 10
+    ):
         node_num = self._map_node_to_number[node[0]] if not search_lol_id else node
         neighbors_list = self._graph.neighbors_unweighted(node_num)
-        neighbors_list_values = np.ndarray([len(neighbors_list), Len], dtype=np.uint16)
+        neighbors_list_values = np.ndarray([len(neighbors_list), Len], dtype=np.uint32)
         for i, neighbor in enumerate(neighbors_list):
             neighbors_list_values[i, :] = self._graph.arr_node_value_from_id(neighbor)
 
@@ -120,5 +123,5 @@ class Graph(object):
 
     @classmethod
     def from_pickle(cls, path: Union[str, PathLike]):
-        graph_dict = pickle.load(open(path, "rb"))
-        return cls(graph_dict)
+        graph_bdict = pickle.load(open(path, "rb"))
+        return cls(graph_bdict[0]), bidict(graph_bdict[1])

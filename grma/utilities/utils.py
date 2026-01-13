@@ -3,9 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable
 
+import numpy as np
+
 from grma.utilities.cutils import cdrop_less_than_7_matches, ccheck_similarity
 
 from collections.abc import Sequence
+import re
+import ast
+from typing import List
+import hashlib
+from grma.utilities.geno_representation import HashableArray
 
 LENGTH_OF_NUMBERS_IN_ALLELE: int = 4
 TO_SEROLOGY: dict[str, int] = {
@@ -225,9 +232,8 @@ def donor_mismatch_format(don_geno: Sequence[int], pat_geno: Sequence[int]) -> s
 def tuple_geno_to_int(tuple_geno: Iterable[int]):
     """convert genotype from Iterable to integer"""
     string = ""
-    fill: int = 4
     for i in tuple_geno:
-        string += str(i).zfill(fill)
+        string += str(i)
     return int(string)
 
 
@@ -243,7 +249,10 @@ def drop_less_than_7_matches(ids, similarities):
 
 def check_similarity(patients_geno, donors_genos, allele_range, init_count_similar):
     return ccheck_similarity(
-        patients_geno, donors_genos, allele_range, init_count_similar
+        np.fromiter(patients_geno, dtype=np.uint32),
+        donors_genos,
+        allele_range,
+        init_count_similar,
     )
 
 
@@ -255,3 +264,25 @@ def gl_string_to_integers(genotype: str) -> Sequence[int]:
     ]
 
     return genotype
+
+
+def gl_string_to_hash(s: str) -> int:
+    return int.from_bytes(hashlib.blake2b(s.encode(), digest_size=8).digest(), "big")
+
+
+def geno_to_int(geno_str):
+    geno = tuple([a for block in geno_str.split("^") for a in block.split("+")])
+    allele_list = []
+    for item in geno:
+        locus, allele = item.split("*")
+        a1, a2 = allele.split(":")
+        if locus == "DRB3":
+            a1 = "3" + a1
+        elif locus == "DRB4":
+            a1 = "4" + a1
+        elif locus == "DRB5":
+            a1 = "5" + a1
+        else:
+            a1 = "0" + a1
+        allele_list.append(int("1" + a1 + a2))
+    return HashableArray(allele_list)

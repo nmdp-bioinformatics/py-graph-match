@@ -9,7 +9,8 @@ import pandas as pd
 from grim import grim
 import csv
 import ast
-
+from bidict import bidict
+import re
 
 from grma.match import Graph as MatchingGraph
 from grma.match.donors_matching import DonorsMatching, _init_results_df
@@ -120,6 +121,7 @@ def find_matches(
     save_to_csv: bool = False,
     calculate_time: bool = False,
     output_dir: str = "output",
+    bdict: bidict = None,
 ):
     """
     The main function responsible for performing the matching.
@@ -148,7 +150,7 @@ def find_matches(
     if verbose:
         print_time("Start graph matching")
 
-    g_m = DonorsMatching(match_graph, verbose=verbose)
+    g_m = DonorsMatching(match_graph, verbose=verbose, bdict=bdict)
 
     # create patients graph and find all candidates
     start_build_graph = time.time()
@@ -167,7 +169,6 @@ def find_matches(
     # print(len(wierd_edges))
 
     # print("------------------------------Fuck My Life-----------------------------------------------------------------")
-    # # code I add for amit checking
     # for patient, genos in g_m.patients.items():
     #     procces = set(g_m.patients_graph.predecessors(patient))
     #     if len(procces) != 1:
@@ -199,13 +200,20 @@ def find_matches(
     patients_results = {patient: None for patient in patients}
     with open(imputation_filename, "r") as f:
         line = f.readline().strip()
-        loci = list(dict.fromkeys([item for item in line.split(',')[1].replace('*', ',').replace('+', ',').replace('^', ',').replace(':', ',').split(',') if not item.isdigit() and item]))
-
+        text = line.split(",")[1]
+        raw_loci = re.findall(r"\b([A-Za-z0-9]+)\*", text)
+        loci = []
+        for locus in raw_loci:
+            if locus in ("DRB3", "DRB4", "DRB5", "DRBX"):
+                locus = "DRB3/4/5/X"
+            loci.append(locus)
+        loci = list(dict.fromkeys(loci))
     if patients:
         avg_build_time = (end_build_graph - start_build_graph) / len(patients)
     else:
         avg_build_time = 0
 
+    times = []
     for patient in patients:
         # print("\n","Patient", patient, "Verbose", verbose)
         # For each patient we search matches in the donor graph.
@@ -222,11 +230,13 @@ def find_matches(
             patient, g_m, donors_info, threshold, cutoff, classes, subclasses
         )
 
-
         match_Probability = results_df["Match_Probability"]
-        match_Between_Most_Commons = results_df["Match_Between_Most_Commons"]
+        # match_Between_Most_Commons = results_df["Match_Between_Most_Commons"]
         Permissive = results_df["Permissive/Non-Permissive"]
-        df_new = results_df.drop(columns=['Match_Probability', 'Match_Between_Most_Commons', 'Permissive/Non-Permissive']).copy()
+        # df_new = results_df.drop(columns=['Match_Probability', 'Match_Between_Most_Commons', 'Permissive/Non-Permissive']).copy()
+        df_new = results_df.drop(
+            columns=["Match_Probability", "Permissive/Non-Permissive"]
+        ).copy()
 
         for idx, row in enumerate(match_Probability):
             k = 0
@@ -234,19 +244,30 @@ def find_matches(
                 for i in [1, 2]:
                     df_new.loc[idx, f"Match_Probability_{locus}_{i}"] = row[k]
                     k += 1
-        df_new['Permissive/Non-Permissive'] = Permissive
-        for idx, row in enumerate(match_Between_Most_Commons):
-            for l, locus in enumerate(loci):
-                df_new.loc[idx, f"Match_Between_Most_Commons_{locus}"] = row[l]
+        df_new["Permissive/Non-Permissive"] = Permissive
+        # for idx, row in enumerate(match_Between_Most_Commons):
+        #     for l, locus in enumerate(loci):
+        #         df_new.loc[idx, f"Match_Between_Most_Commons_{locus}"] = row[l]
         results_df = df_new.copy()
+
+        # Normalize mismatch probability columns
+        # for cols in [
+        #     ['chance_for_0_GvH_Mismatches', 'chance_for_1_GvH_Mismatches', 'chance_for_2_GvH_Mismatches', 'chance_for_3_GvH_Mismatches', 'chance_for_3+_GvH_Mismatches'],
+        #     ['chance_for_0_HvG_Mismatches', 'chance_for_1_HvG_Mismatches', 'chance_for_2_HvG_Mismatches', 'chance_for_3_HvG_Mismatches', 'chance_for_3+_HvG_Mismatches'],
+        #     ['chance_for_0_Mismatches', 'chance_for_1_Mismatches', 'chance_for_2_Mismatches', 'chance_for_3_Mismatches', 'chance_for_3+_Mismatches']
+        # ]:
+        #     prob_sum = results_df[cols].sum(axis=1)
+        #     for col in cols:
+        #         results_df[col] = results_df[col].div(prob_sum).fillna(0.0).round(2)
+
         end = time.time()
         patient_time = end - start + avg_build_time
-
+        times.append(end - start)
         if calculate_time:
             patients_results[patient] = (results_df, patient_time)
         else:
             patients_results[patient] = results_df
-
+        patient = -1 * patient
         if save_to_csv:
             # save results to csv
             results_df.to_csv(
@@ -254,13 +275,15 @@ def find_matches(
                     f"{output_dir}/search_{search_id}", f"Patient_{patient}.csv"
                 ),
                 index=True,
-                float_format="%.2f",
+                # float_format="%.2f",
             )
             if verbose:
                 print_time(
                     f"Saved Matching results for {patient} in "
                     f"{os.path.join(f'{output_dir}/search_{search_id}', f'Patient_{patient}.csv')}"
                 )
+    with open("times_grma.json", "w") as f:
+        json.dump(times, f, indent=4)
     return patients_results
 
 
@@ -275,6 +298,7 @@ def matching(
     verbose: bool = False,
     save_to_csv: bool = False,
     output_dir="output",
+    bdict: bidict = None,
 ):
     """
     A function that performs the patients imputation with the matching.
@@ -321,6 +345,7 @@ def matching(
         verbose,
         save_to_csv,
         output_dir=output_dir,
+        bdict=bdict,
     )
 
     return all_matches

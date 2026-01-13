@@ -6,7 +6,7 @@ import gc
 from collections import OrderedDict
 
 from grma.donorsgraph import Edge
-from grma.utilities.utils import print_time, tuple_geno_to_int
+from grma.utilities.utils import print_time
 
 
 class LolBuilder:
@@ -76,10 +76,10 @@ class LolBuilder:
         arrays_start = free
         # map lol-ids to arrays
         # given an lol_id, the mapping will be map_number_to_arr_node[lol_id - arrays_start, :]
-        geno = layers['GENOTYPE'].pop()
-        layers['GENOTYPE'].add(geno)
+        geno = layers["GENOTYPE"].pop()
+        layers["GENOTYPE"].add(geno)
         map_number_to_arr_node = np.zeros(
-            (len(layers["GENOTYPE"]), len(geno)), dtype=np.uint16
+            (len(layers["GENOTYPE"]), len(geno)), dtype=np.uint32
         )
         for i, geno in tqdm(
             enumerate(layers["GENOTYPE"]),
@@ -87,7 +87,7 @@ class LolBuilder:
             disable=not self._verbose,
         ):
             map_node_to_number[geno] = free
-            map_number_to_arr_node[i, :] = geno.np()
+            map_number_to_arr_node[i] = geno
             free += 1
 
         # map classes to lol-id.
@@ -112,7 +112,7 @@ class LolBuilder:
                 )
                 if y < subclasses_start
             ],
-            dtype=np.uint32,
+            dtype=np.int32,
         )
 
         print_time("(3/6) Create the index list")
@@ -186,12 +186,6 @@ class LolBuilder:
                     weights_list=weights_list,
                 )
 
-        # replace geno hashable array to more efficient representation.
-        for array_geno in layers["GENOTYPE"]:
-            int_geno = tuple_geno_to_int(array_geno)
-            map_node_to_number[int_geno] = map_node_to_number[array_geno]
-            del map_node_to_number[array_geno]
-
         del self._graph
         del layers
         gc.collect()
@@ -216,7 +210,7 @@ class LolBuilder:
         index_list,
         *,
         weight=None,
-        weights_list=None
+        weights_list=None,
     ):
         if space[node1] != -1:
             space[node1] += 1

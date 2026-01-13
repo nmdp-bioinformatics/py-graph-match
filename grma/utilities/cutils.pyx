@@ -9,8 +9,6 @@ ctypedef np.int8_t INT8
 ctypedef np.uint16_t UINT16
 ctypedef np.uint32_t UINT32
 
-
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cpdef np.ndarray[UINT32, ndim=2] cdrop_less_than_7_matches(np.ndarray[UINT32, ndim=1] ids,
@@ -28,11 +26,10 @@ cpdef np.ndarray[UINT32, ndim=2] cdrop_less_than_7_matches(np.ndarray[UINT32, nd
             count += 1
     return ret[:count, :]
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef np.ndarray[INT8, ndim=1] ccheck_similarity(np.ndarray[UINT16, ndim=1] patients_geno,
-                                                 np.ndarray[UINT16, ndim=2] donors_genos,
+cpdef np.ndarray[INT8, ndim=1] ccheck_similarity(np.ndarray[UINT32, ndim=1] patients_geno,  # Changed from UINT16
+                                                 np.ndarray[UINT32, ndim=2] donors_genos,  # Changed from UINT16
                                                  np.ndarray[UINT8, ndim=1] allele_range, UINT8 init_count_similar):
     """
     Takes 2 genotypes to check similarity between \n
@@ -45,9 +42,9 @@ cpdef np.ndarray[INT8, ndim=1] ccheck_similarity(np.ndarray[UINT16, ndim=1] pati
     """
     cdef:
         np.ndarray[INT8, ndim=1] similarities
-        np.ndarray[UINT16, ndim=1] donors_geno
+        np.ndarray[UINT32, ndim=1] donors_geno  # Changed from UINT16
         UINT8 count_similar, counted, number_of_alleles, allele_num
-        UINT16 patient_alleles0, patient_alleles1, donor_alleles0, donor_alleles1
+        UINT32 patient_alleles0, patient_alleles1, donor_alleles0, donor_alleles1  # Changed from UINT16
 
     similarities = np.zeros(len(donors_genos), dtype=np.int8)
     number_of_alleles = len(allele_range)
@@ -90,10 +87,9 @@ cpdef np.ndarray[INT8, ndim=1] ccheck_similarity(np.ndarray[UINT16, ndim=1] pati
 
     return similarities
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef UINT32 chash(np.ndarray[UINT16, ndim=1] arr):
+cpdef UINT32 chash(np.ndarray[UINT32, ndim=1] arr):
     cdef UINT32 h = 17
     cdef UINT8 i
     for i in range(len(arr)):

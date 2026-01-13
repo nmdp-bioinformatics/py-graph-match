@@ -52,7 +52,7 @@ with open("requirements-tests.txt") as requirements_file:
     test_requirements = requirements_file.read().split("\n")
 
 setup(
-    name="py-graph-match-temp",
+    name="py-graph-match",
     version="0.0.9",
     author="Pradeep Bashyal",
     author_email="pbashyal@nmdp.org",
@@ -87,11 +87,17 @@ setup(
                 "grma.utilities.cutils",
                 ["grma/utilities/cutils.pyx"],
                 define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+                include_dirs=[numpy.get_include()],
             ),
             Extension(
                 "grma.match.lol_graph",
                 ["grma/match/lol_graph.pyx"],
                 define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+            ),
+            Extension(
+                "grma.match.hla_match",
+                ["grma/match/hla_match.pyx"],
+                include_dirs=[numpy.get_include()],
             ),
         ]
     ),
