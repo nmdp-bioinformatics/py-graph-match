@@ -1,7 +1,7 @@
 toml==0.10.2
 py-ard==2.0.0b2
 
-py-graph-imputation==0.1.13.dev1
+py-graph-imputation==1.0.0
 
 bidict
 networkx
