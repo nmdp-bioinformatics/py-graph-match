@@ -1,9 +1,7 @@
 from my_project_template.model.slug import SLUG
 
-
 # SLUG match
 # match the SLUG of patient with donor
-
 
 def slug_match(patient_slug: SLUG, donor_slug: SLUG) -> bool:
     """
